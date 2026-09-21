@@ -1,4 +1,5 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 from conexion import ConexionDB
 
 db = ConexionDB(
@@ -9,53 +10,16 @@ db = ConexionDB(
 )
 
 app = Flask(__name__)
+CORS(app)  # Me tienen podrido con el CORS, 
+#pero bueno, es lo que hay. No me da tiempo a hacer 
+#un proxy inverso ni nada de eso.
 
-
-@app.route("/")
-def index():
-    return render_template("index.html")
-
-@app.route("/detalle/<int:id>")
-def detalle(id):
-    return render_template("detalle.html", id=id)
-
-@app.route("/carrito")
-def carrito():
-    return render_template("carrito.html")
-
-@app.route("/login")
-def login():
-    return render_template("login.html")
-
-@app.route("/terminos")
-def terminos():
-    return render_template("terminos.html")
-
-@app.route("/privacidad")
-def privacidad():
-    return render_template("privacidad.html")
-
-@app.route("/Reportes")
-def reportes():
-    return render_template("Reportes.html")
-
-@app.route("/registro")
-def registro():
-    return render_template("registro.html")
-
-@app.route("/nuevoProducto")
-def nuevo_producto():
-    return render_template("nuevoProducto.html")
-
-# Precaucion
-# Aqui abajo hay un desorden ajajajajajaja
-#-----------------------------------------------------------------------
 
 @app.route("/productos", methods=["GET"])
 def get_productos():
     cursor = db.obtener_cursor()
     cursor.execute("""
-        SELECT id_producto, nombre, descripcion, precio, imagen_url
+        SELECT id_producto, nombre, descripcion, precio, stock, color, estado, imagen_url
         FROM Productos
         WHERE estado = 'activo'
     """)
@@ -69,20 +33,22 @@ def get_productos():
             "nombre": row["nombre"],
             "descripcion": row["descripcion"],
             "precio": float(row["precio"]),
+            "stock": row["stock"],
+            "color": row["color"],
+            "estado": row["estado"],
             "imagen": row["imagen_url"]
         })
 
     return jsonify(productos)
 
-
 @app.route("/productos/<int:id>", methods=["GET"])
 def get_producto(id):
     cursor = db.obtener_cursor()
     cursor.execute("""
-        SELECT id_producto, nombre, descripcion, precio, imagen_url
+        SELECT id_producto, nombre, descripcion, precio, stock, color, estado, imagen_url
         FROM Productos
-        WHERE id_producto = %s AND estado = 'activo'
-    """, (id,))
+        WHERE id_producto = %s
+    """, (id,)) 
     row = cursor.fetchone()
     cursor.close()
 
@@ -92,6 +58,9 @@ def get_producto(id):
             "nombre": row["nombre"],
             "descripcion": row["descripcion"],
             "precio": float(row["precio"]),
+            "stock": row["stock"],
+            "color": row["color"],
+            "estado": row["estado"],
             "imagen": row["imagen_url"]
         }
         return jsonify(producto)
@@ -126,7 +95,8 @@ def get_carrito(id):
         })
 
     return jsonify({"items": carrito, "total": total})
-#-----------------------------------------------------------
+
+
 @app.route("/carrito/agregar", methods=["POST"])
 def agregar_carrito():
     try:
@@ -185,6 +155,7 @@ def agregar_carrito():
         print(f"Error interno en /carrito/agregar: {e}")
         return jsonify({"error": str(e)}), 500
 
+
 @app.route("/carrito/eliminar/<int:id_detalle>", methods=["DELETE", "POST"])
 def eliminar_item_carrito(id_detalle):
     try:
@@ -202,7 +173,127 @@ def eliminar_item_carrito(id_detalle):
         print(f"Error al eliminar ítem: {e}")
         return jsonify({"error": str(e)}), 500
 
+#------------------------------------------------------------------
+
+@app.route("/registro", methods=["POST"])
+def registrar_usuario():
+    try:
+        data = request.get_json(silent=True)
+        if not data:
+            return jsonify({"error": "No se recibió payload JSON"}), 400
+
+        nombre = data.get("nombre")
+        correo = data.get("correo")
+        usuario = data.get("usuario")
+        contrasena = data.get("contrasena")
+
+        if not all([nombre, correo, usuario, contrasena]):
+            return jsonify({"error": "Faltan campos obligatorios"}), 400
+
+        conexion = db.conectar()
+        cursor = conexion.cursor(dictionary=True)
+
+        cursor.execute(
+            "SELECT id_usuario FROM Usuarios WHERE usuario = %s OR correo = %s",
+            (usuario, correo)
+        )
+        existente = cursor.fetchone()
+
+        if existente:
+            cursor.close()
+            return jsonify({"error": "El nombre de usuario o el correo ya están registrados."}), 400
+
+        cursor.execute(
+            """
+            INSERT INTO Usuarios (nombre, correo, usuario, contrasena, rol)
+            VALUES (%s, %s, %s, %s, 'admin')
+            """,
+            (nombre, correo, usuario, contrasena)
+        )
+        conexion.commit()
+        cursor.close()
+
+        return jsonify({"message": "Usuario registrado exitosamente"}), 201
+
+    except Exception as e:
+        print(f"Error interno en /registro: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/login", methods=["POST"])
+def login_admin():
+    try:
+        data = request.get_json(silent=True)
+        if not data:
+            return jsonify({"error": "No se recibió payload JSON"}), 400
+
+        usuario = data.get("usuario")
+        contrasena = data.get("contrasena")
+
+        if not usuario or not contrasena:
+            return jsonify({"error": "Faltan campos obligatorios"}), 400
+
+        conexion = db.conectar()
+        cursor = conexion.cursor(dictionary=True)
+
+        cursor.execute(
+            "SELECT id_usuario, nombre, correo, usuario, contrasena, rol FROM Usuarios WHERE usuario = %s",
+            (usuario,)
+        )
+        admin = cursor.fetchone()
+        cursor.close()
+
+        if not admin or admin["contrasena"] != contrasena:
+            return jsonify({"error": "Usuario o contraseña incorrectos"}), 401
+
+        return jsonify({
+            "message": "Bienvenido",
+            "usuario": {
+                "id": admin["id_usuario"],
+                "nombre": admin["nombre"],
+                "correo": admin["correo"],
+                "usuario": admin["usuario"],
+                "rol": admin["rol"]
+            }
+        }), 200
+
+    except Exception as e:
+        print(f"Error interno en /login: {e}")
+        return jsonify({"error": str(e)}), 500
+#----------------------------------------------------------------
+@app.route("/productos/editar/<int:id>", methods=["PUT"])
+def editar_producto(id):
+    try:
+        data = request.get_json(silent=True)
+        if not data:
+            return jsonify({"error": "No se recibió payload JSON"}), 400
+
+        nombre = data.get("nombre")
+        descripcion = data.get("descripcion")
+        precio = data.get("precio")
+        stock = data.get("stock")
+        color = data.get("color")
+        estado = data.get("estado")
+        imagen = data.get("imagen")
+
+        conexion = db.conectar()
+        cursor = conexion.cursor()
+
+        cursor.execute(
+            """
+            UPDATE Productos 
+            SET nombre = %s, descripcion = %s, precio = %s, stock = %s, color = %s, estado = %s, imagen_url = %s
+            WHERE id_producto = %s
+            """,
+            (nombre, descripcion, precio, stock, color, estado, imagen, id)
+        )
+        conexion.commit()
+        cursor.close()
+
+        return jsonify({"message": "Producto actualizado exitosamente"}), 200
+
+    except Exception as e:
+        print(f"Error interno al editar producto: {e}")
+        return jsonify({"error": str(e)}), 500
+
 if __name__ == "__main__":
-    app.run()
-
-
+    app.run(debug=True)
