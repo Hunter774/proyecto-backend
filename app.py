@@ -14,6 +14,9 @@ CORS(app)  # Me tienen podrido con el CORS,
 #pero bueno, es lo que hay. No me da tiempo a hacer 
 #un proxy inverso ni nada de eso.
 
+@app.route("/prueba")
+def prueba():
+    return jsonify({"mensaje": "Flask funciona correctamente"})
 
 @app.route("/productos", methods=["GET"])
 def get_productos():
