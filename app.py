@@ -391,34 +391,27 @@ def eliminar_producto(id):
 def get_reportes():
     try:
         cursor = db.obtener_cursor()
-        
-        cursor.execute("""
-            SELECT cd.id_detalle, u.nombre AS cliente, p.nombre AS producto, 
-                   cd.cantidad, cd.precio_unitario
-            FROM CarritoDetalle cd
-            JOIN Carrito c ON cd.id_carrito = c.id_carrito
-            JOIN Usuarios u ON c.id_usuario = u.id_usuario
-            JOIN Productos p ON cd.id_producto = p.id_producto
-        """)
+        cursor.execute("SELECT * FROM Reportes")
         rows = cursor.fetchall()
         cursor.close()
 
         reportes = []
         for row in rows:
-            subtotal = float(row["precio_unitario"]) * row["cantidad"]
             reportes.append({
-                "id_detalle": f"#TX-{row['id_detalle']}",
-                "cliente": row["cliente"],
-                "producto": row["producto"],
-                "cantidad": row["cantidad"],
-                "precio_unitario": float(row["precio_unitario"]),
-                "subtotal": subtotal
+                "id_reporte": row[0] if isinstance(row, tuple) else row["id_reporte"],
+                "id_usuario": row[1] if isinstance(row, tuple) else row["id_usuario"],
+                "cliente": row[2] if isinstance(row, tuple) else row["nombre_cliente"],
+                "producto": row[3] if isinstance(row, tuple) else row["nombre_producto"],
+                "cantidad": row[4] if isinstance(row, tuple) else row["cantidad"],
+                "precio_unitario": float(row[5] if isinstance(row, tuple) else row["precio_unitario"]),
+                "subtotal": float(row[6] if isinstance(row, tuple) else row["subtotal"]),
+                "fecha": str(row[7] if isinstance(row, tuple) else row["fecha_compra"])
             })
 
         return jsonify(reportes), 200
 
     except Exception as e:
-        print(f"Error interno en /reportes: {e}")
+        print(f"Error interno al obtener reportes: {e}")
         return jsonify({"error": str(e)}), 500
 #SUELTENMEEEEEEEEEEEEEEEEEEE--------------------------X2
 @app.route("/carrito/comprar/<int:id_usuario>", methods=["POST"])
@@ -445,7 +438,6 @@ def realizar_compra(id_usuario):
 
         total_orden = 0
         for item in items:
-            # Soportar tanto tupla como diccionario según el cursor
             id_prod = item[0] if isinstance(item, tuple) else item["id_producto"]
             cant = item[1] if isinstance(item, tuple) else item["cantidad"]
             precio_uni = item[2] if isinstance(item, tuple) else item["precio_unitario"]
