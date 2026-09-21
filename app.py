@@ -3,10 +3,10 @@ from flask_cors import CORS
 from conexion import ConexionDB
 
 db = ConexionDB(
-    host="bdppw.mysql.database.azure.com",
-    user="Hunter774575",
-    password="Darkhunter77*",
-    db="xbits"
+    host=os.getenv("DB_HOST"),
+    user=os.getenv("DB_USER"),
+    password=os.getenv("DB_PASSWORD"),
+    db=os.getenv("DB_NAME")
 )
 
 app = Flask(__name__)
