@@ -3,10 +3,10 @@ from flask_cors import CORS
 from conexion import ConexionDB
 
 db = ConexionDB(
-    host=os.getenv("DB_HOST"),
-    user=os.getenv("DB_USER"),
-    password=os.getenv("DB_PASSWORD"),
-    db=os.getenv("DB_NAME")
+    host="bdppw.mysql.database.azure.com",
+    user="Hunter774575",
+    password="Darkhunter77*",
+    db="xbits"
 )
 
 app = Flask(__name__)
@@ -14,9 +14,6 @@ CORS(app)  # Me tienen podrido con el CORS,
 #pero bueno, es lo que hay. No me da tiempo a hacer 
 #un proxy inverso ni nada de eso.
 
-@app.route("/prueba")
-def prueba():
-    return jsonify({"mensaje": "Flask funciona correctamente"})
 
 @app.route("/productos", methods=["GET"])
 def get_productos():
@@ -501,4 +498,4 @@ def realizar_compra(id_usuario):
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app.run(debug=True)
